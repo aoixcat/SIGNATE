@@ -114,6 +114,12 @@ class VAE(nn.Module):
         
         return L1
     
+    def predict(self, x):
+        shape = x.shape
+        x = x.view(-1, shape[0], shape[1], shape[2])
+        x.to(self.device)
+        return self.encode(x)
+    
 class Classifier(nn.Module):
     
     def __init__(self):
@@ -146,5 +152,52 @@ class Classifier(nn.Module):
         self.conv4_gated_bn = nn.BatchNorm2d(16)
         self.conv4_sigmoid = nn.Sigmoid()
         
-        self.conv5 = nn.Conv2d(16, 2, (1,4), (1,2), padding=(0, 0))
+        self.conv5 = nn.Conv2d(16, 2, (1,1), (1,1), padding=(0, 0))
+        
+        
+    def classify(self, x):
+        
+        h1_ = self.conv1_bn(self.conv1(x))
+        h1_gated = self.conv1_gated_bn(self.conv1_gated(x))
+        h1 = torch.mul(h1_, self.conv1_sigmoid(h1_gated))
+        
+        h2_ = self.conv2_bn(self.conv2(h1))
+        h2_gated = self.conv2_gated_bn(self.conv2_gated(h1))
+        h2 = torch.mul(h2_, self.conv2_sigmoid(h2_gated))
+        
+        h3_ = self.conv3_bn(self.conv3(h2))
+        h3_gated = self.conv3_gated_bn(self.conv3_gated(h2))
+        h3 = torch.mul(h3_, self.conv3_sigmoid(h3_gated))
+        
+        h4_ = self.ac_conv4_bn(self.conv4(h3))
+        h4_gated = self.conv4_gated_bn(self.conv4_gated(h3))
+        h4 = torch.mul(h4_, self.conv4_sigmoid(h4_gated))
+        
+        h5_ = F.softmax(self.conv5(h4), dim=1)
+        h5 = torch.prod(h5_, dim=-1, keepdim=True)
+        
+        return h5.view(-1, 2)
+    
+    def calc_loss(self, x, label, label_):
+        
+        #Yes | No
+        shape = label_.shape
+        y_ = torch.zeros(shape[0], 2)
+        for i in range(len(label)):
+            if (label == label_[i]:
+                y[i, 0] = 1
+            else:
+                y[i, 1] = 1
+        
+        y = self.classify(x)
+        loss = F.binary_cross_entropy(y, y_)
+        return loss
+        
+    def predict(self):
+        shape = x.shape
+        x = x.view(-1, shape[0], shape[1], shape[2])
+        x.to(self.device)
+        y = self.classify(x)
+        return y
+        
         
