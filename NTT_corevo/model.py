@@ -184,7 +184,7 @@ class Classifier(nn.Module):
         shape = label_.shape
         y_ = torch.zeros(shape[0], 2)
         for i in range(len(label)):
-            if (label == label_[i]:
+            if (label == label_[i]):
                 y[i, 0] = 1
             else:
                 y[i, 1] = 1
