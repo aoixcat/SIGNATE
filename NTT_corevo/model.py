@@ -116,9 +116,12 @@ class VAE(nn.Module):
     
     def predict(self, x):
         shape = x.shape
-        x = x.view(-1, shape[0], shape[1], shape[2])
+        if  (len(shape) == 3):
+            x = x.view(-1, shape[0], shape[1], shape[2])
         x.to(self.device)
-        return self.encode(x)
+        mu_enc, logvar_enc = self.encode(x)
+        z_enc = self.reparameterize(mu_enc, logvar_enc)
+        return z_enc
     
 class Classifier(nn.Module):
     
@@ -128,27 +131,27 @@ class Classifier(nn.Module):
 
         super(Classifier, self).__init__()
         
-        self.conv1 = nn.Conv2d(5, 8, (4,1), (2,1), padding=(1, 0))
+        self.conv1 = nn.Conv2d(5, 8, (1,4), (1,2), padding=(0, 1))
         self.conv1_bn = nn.BatchNorm2d(8)
-        self.conv1_gated = nn.Conv2d(1, 8, (4,1), (2,1), padding=(1, 1))
+        self.conv1_gated = nn.Conv2d(5, 8, (1,4), (1,2), padding=(0, 1))
         self.conv1_gated_bn = nn.BatchNorm2d(8)
         self.conv1_sigmoid = nn.Sigmoid()
         
-        self.conv2 = nn.Conv2d(8, 16, (4,1), (2,1), padding=(1, 0))
+        self.conv2 = nn.Conv2d(8, 16, (1,4), (1,2), padding=(0, 1))
         self.conv2_bn = nn.BatchNorm2d(16)
-        self.conv2_gated = nn.Conv2d(8, 16, (4,1), (2,1), padding=(1, 0))
+        self.conv2_gated = nn.Conv2d(8, 16, (1,4), (1,2), padding=(0, 1))
         self.conv2_gated_bn = nn.BatchNorm2d(16)
         self.conv2_sigmoid = nn.Sigmoid()
         
-        self.conv3 = nn.Conv2d(16, 32, (4,1), (2,1), padding=(1, 0))
+        self.conv3 = nn.Conv2d(16, 32, (1,4), (1,2), padding=(0, 1))
         self.conv3_bn = nn.BatchNorm2d(32)
-        self.conv3_gated = nn.Conv2d(16, 32, (4,1), (2,1), padding=(1, 0))
+        self.conv3_gated = nn.Conv2d(16, 32, (1,4), (1,2), padding=(0, 1))
         self.conv3_gated_bn = nn.BatchNorm2d(32)
         self.conv3_sigmoid = nn.Sigmoid()
         
-        self.conv4 = nn.Conv2d(32, 16, (4,1), (2,1), padding=(1, 0))
+        self.conv4 = nn.Conv2d(32, 16, (1,4), (1,2), padding=(0, 1))
         self.conv4_bn = nn.BatchNorm2d(16)
-        self.conv4_gated = nn.Conv2d(32, 16, (4,1), (2,1), padding=(1, 0))
+        self.conv4_gated = nn.Conv2d(32, 16, (1,4), (1,2), padding=(0, 1))
         self.conv4_gated_bn = nn.BatchNorm2d(16)
         self.conv4_sigmoid = nn.Sigmoid()
         
@@ -169,7 +172,7 @@ class Classifier(nn.Module):
         h3_gated = self.conv3_gated_bn(self.conv3_gated(h2))
         h3 = torch.mul(h3_, self.conv3_sigmoid(h3_gated))
         
-        h4_ = self.ac_conv4_bn(self.conv4(h3))
+        h4_ = self.conv4_bn(self.conv4(h3))
         h4_gated = self.conv4_gated_bn(self.conv4_gated(h3))
         h4 = torch.mul(h4_, self.conv4_sigmoid(h4_gated))
         
@@ -183,19 +186,24 @@ class Classifier(nn.Module):
         #Yes | No
         shape = label_.shape
         y_ = torch.zeros(shape[0], 2)
-        for i in range(len(label)):
+        for i in range(len(label_)):
             if (label == label_[i]):
-                y[i, 0] = 1
+                y_[i, 0] = 1
             else:
-                y[i, 1] = 1
+                y_[i, 1] = 1
+        
+        x = x.to(self.device)
+
+        y_ = y_.to(self.device)
         
         y = self.classify(x)
         loss = F.binary_cross_entropy(y, y_)
         return loss
         
-    def predict(self):
+    def predict(self, x):
         shape = x.shape
-        x = x.view(-1, shape[0], shape[1], shape[2])
+        if  (len(shape) == 3):
+            x = x.view(-1, shape[0], shape[1], shape[2])
         x.to(self.device)
         y = self.classify(x)
         return y
