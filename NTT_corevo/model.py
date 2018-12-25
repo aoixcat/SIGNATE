@@ -126,7 +126,7 @@ class Classifier(nn.Module):
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        super(VAE, self).__init__()
+        super(Classifier, self).__init__()
         
         self.conv1 = nn.Conv2d(5, 8, (4,1), (2,1), padding=(1, 0))
         self.conv1_bn = nn.BatchNorm2d(8)
