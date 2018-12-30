@@ -155,7 +155,8 @@ class Classifier(nn.Module):
         self.conv4_gated_bn = nn.BatchNorm2d(16)
         self.conv4_sigmoid = nn.Sigmoid()
         
-        self.conv5 = nn.Conv2d(16, 2, (1,1), (1,1), padding=(0, 0))
+        self.conv5 = nn.Conv2d(16, 1, (1,1), (1,1), padding=(0, 0))
+        self.conv5_sigmoid = nn.Sigmoid()
         
         
     def classify(self, x):
@@ -178,22 +179,20 @@ class Classifier(nn.Module):
         
         h5_ = F.softmax(self.conv5(h4), dim=1)
         h5 = torch.prod(h5_, dim=-1, keepdim=True)
+        h5 = self.conv5_sigmoid(h5)
         
-        return h5.view(-1, 2)
+        return h5.view(-1, 1)
     
-    def calc_loss(self, x, label, label_):
+    def calc_loss(self, x, self_label, label_):
         
         #Yes | No
         shape = label_.shape
-        y_ = torch.zeros(shape[0], 2)
+        y_ = torch.zeros(shape[0], 1)
         for i in range(len(label_)):
-            if (label == label_[i]):
-                y_[i, 0] = 1
-            else:
-                y_[i, 1] = 1
+            if (self_label == label_[i]):
+                y_[i] = 1
         
         x = x.to(self.device)
-
         y_ = y_.to(self.device)
         
         y = self.classify(x)
@@ -208,4 +207,116 @@ class Classifier(nn.Module):
         y = self.classify(x)
         return y
         
+class PredictingModel(nn.Module):
+    def __init__(self):
         
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        super(PredictingModel, self).__init__()
+        
+        # 1 * 32* 1024 -> 8 * 16 * 512
+        self.conv1 = nn.Conv2d(1, 8, (4,8), (2,2), padding=(1, 3))
+        self.conv1_bn = nn.BatchNorm2d(8)
+        self.conv1_gated = nn.Conv2d(1, 8, (4,8), (2,2), padding=(1, 3))
+        self.conv1_gated_bn = nn.BatchNorm2d(8)
+        self.conv1_sigmoid = nn.Sigmoid()
+        
+        # 8 * 16  * 512 -> 16 * 8 * 256 
+        self.conv2 = nn.Conv2d(8, 16, (4,8), (2,2), padding=(1, 3))
+        self.conv2_bn = nn.BatchNorm2d(16)
+        self.conv2_gated = nn.Conv2d(8, 16, (4,8), (2,2), padding=(1, 3))
+        self.conv2_gated_bn = nn.BatchNorm2d(16)
+        self.conv2_sigmoid = nn.Sigmoid()
+        
+        # 16 * 8 * 256 -> 32 * 4 * 128 
+        self.conv3 = nn.Conv2d(16, 32, (4,8), (2,2), padding=(1, 3))
+        self.conv3_bn = nn.BatchNorm2d(32)
+        self.conv3_gated = nn.Conv2d(16, 32, (4,8), (2,2), padding=(1, 3))
+        self.conv3_gated_bn = nn.BatchNorm2d(32)
+        self.conv3_sigmoid = nn.Sigmoid()
+        
+        # 32 * 4 * 128 -> 32 * 4 * 64
+        self.conv4 = nn.Conv2d(32, 32, (1,4), (1,2), padding=(0, 1))
+        self.conv4_bn = nn.BatchNorm2d(32)
+        self.conv4_gated = nn.Conv2d(32, 32, (1,4), (1,2), padding=(0, 1))
+        self.conv4_gated_bn = nn.BatchNorm2d(32)
+        self.conv4_sigmoid = nn.Sigmoid()
+        
+        # 32 * 4 * 64 -> 32 * 4 * 32
+        self.conv5 = nn.Conv2d(32, 32, (1,4), (1,2), padding=(0, 1))
+        self.conv5_bn = nn.BatchNorm2d(32)
+        self.conv5_gated = nn.Conv2d(32, 32, (1,4), (1,2), padding=(0, 1))
+        self.conv5_gated_bn = nn.BatchNorm2d(32)
+        self.conv5_sigmoid = nn.Sigmoid()
+        
+        # 32 * 4 * 32 -> 16 * 4 * 16
+        self.conv6 = nn.Conv2d(32, 16, (1,4), (1,2), padding=(0, 1))
+        self.conv6_bn = nn.BatchNorm2d(16)
+        self.conv6_gated = nn.Conv2d(32, 16, (1,4), (1,2), padding=(0, 1))
+        self.conv6_gated_bn = nn.BatchNorm2d(16)
+        self.conv6_sigmoid = nn.Sigmoid()
+        
+        # 16 * 4 * 16 -> 16 * 4 * 8
+        self.conv7 = nn.Conv2d(16, 16, (1,2), (1,2), padding=(0, 0))
+        self.conv7_bn = nn.BatchNorm2d(16)
+        self.conv7_gated = nn.Conv2d(16, 16, (1,2), (1,2), padding=(0, 0))
+        self.conv7_gated_bn = nn.BatchNorm2d(16)
+        self.conv7_sigmoid = nn.Sigmoid()
+        
+        # 16 * 4 * 8 -> 32
+        self.dropout1 = nn.Dropout2d()
+        self.fc1 = nn.Linear(16 * 4 * 8 // 2, 64)
+        self.dropout2 = nn.Dropout2d()
+        self.fc2 = nn.Linear(64, 6)
+        
+    def forward(self, x):
+       
+        h1_ = self.conv1_bn(self.conv1(x))
+        h1_gated = self.conv1_gated_bn(self.conv1_gated(x))
+        h1 = torch.mul(h1_, self.conv1_sigmoid(h1_gated))
+        
+        h2_ = self.conv2_bn(self.conv2(h1))
+        h2_gated = self.conv2_gated_bn(self.conv2_gated(h1))
+        h2 = torch.mul(h2_, self.conv2_sigmoid(h2_gated)) 
+        
+        h3_ = self.conv3_bn(self.conv3(h2))
+        h3_gated = self.conv3_gated_bn(self.conv3_gated(h2))
+        h3 = torch.mul(h3_, self.conv3_sigmoid(h3_gated))
+        
+        h4_ = self.conv4_bn(self.conv4(h3))
+        h4_gated = self.conv4_gated_bn(self.conv4_gated(h3))
+        h4 = torch.mul(h4_, self.conv4_sigmoid(h4_gated))
+        
+        h5_ = self.conv5_bn(self.conv5(h4))
+        h5_gated = self.conv5_gated_bn(self.conv5_gated(h4))
+        h5 = torch.mul(h5_, self.conv5_sigmoid(h5_gated)) 
+        
+        h6_ = self.conv6_bn(self.conv6(h5))
+        h6_gated = self.conv6_gated_bn(self.conv6_gated(h5))
+        h6 = torch.mul(h6_, self.conv6_sigmoid(h6_gated))
+        
+        h7_ = self.conv7_bn(self.conv7(h6))
+        h7_gated = self.conv7_gated_bn(self.conv7_gated(h6))
+        h7 = torch.mul(h7_, self.conv7_sigmoid(h7_gated))
+        
+        h8 = self.dropout1(h7)
+        h8 = h8.view(-1, 16 * 4 * 8 // 2)
+        h8 = F.relu(self.fc1(h8))
+        h8 = self.dropout2(h8)
+        h8 = self.fc2(h8)
+        
+        return F.softmax(h8, dim=1)
+    
+    def predict(self, x):
+        shape = x.shape
+        if  (len(shape) == 3):
+            x = x.view(-1, shape[0], shape[1], shape[2])
+        x.to(self.device)
+        y = self.forward(x)
+        return y
+    
+    def calc_loss(self, x, label):
+        x = self.forward(x)
+        loss = nn.CrossEntropyLoss()(x, label)
+        return loss
+    
