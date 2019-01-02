@@ -131,6 +131,40 @@ class Classifier(nn.Module):
 
         super(Classifier, self).__init__()
         
+        self.fc1 = nn.Linear(5 * 1 * 256 // 2,  256 * 4)
+        self.fc1_bn = nn.BatchNorm1d(256 * 4)
+        self.fc1_gated = nn.Linear(5 * 1 * 256 // 2,  256 * 4)
+        self.fc1_gated_bn = nn.BatchNorm1d(256 * 4)
+        self.fc1_sigmoid = nn.Sigmoid()
+        
+        self.fc2 = nn.Linear(256 * 4,  256 * 4)
+        self.fc2_bn = nn.BatchNorm1d(256 * 4)
+        self.fc2_gated = nn.Linear(256 * 4,  256 * 4)
+        self.fc2_gated_bn = nn.BatchNorm1d(256 * 4)
+        self.fc2_sigmoid = nn.Sigmoid()
+        
+        self.fc3 = nn.Linear(256 * 4,  256 * 2)
+        self.fc3_bn = nn.BatchNorm1d(256 * 2)
+        self.fc3_gated = nn.Linear(256 * 4,  256 * 2)
+        self.fc3_gated_bn = nn.BatchNorm1d(256 * 2)
+        self.fc3_sigmoid = nn.Sigmoid()
+        
+        self.fc4 = nn.Linear(256 * 2,  256 * 1)
+        self.fc4_bn = nn.BatchNorm1d(256 * 1)
+        self.fc4_gated = nn.Linear(256 * 2, 256 * 1)
+        self.fc4_gated_bn = nn.BatchNorm1d(256 * 1)
+        self.fc4_sigmoid = nn.Sigmoid()
+        
+        self.fc5 = nn.Linear(256 * 1,  64)
+        self.fc5_bn = nn.BatchNorm1d(64)
+        self.fc5_gated = nn.Linear(256 * 1, 64)
+        self.fc5_gated_bn = nn.BatchNorm1d(64)
+        self.fc5_sigmoid = nn.Sigmoid()
+        
+        self.fc6 = nn.Linear(64, 1)
+        self.fc6_sigmoid = nn.Sigmoid()
+        
+        """
         self.conv1 = nn.Conv2d(5, 8, (1,4), (1,2), padding=(0, 1))
         self.conv1_bn = nn.BatchNorm2d(8)
         self.conv1_gated = nn.Conv2d(5, 8, (1,4), (1,2), padding=(0, 1))
@@ -157,10 +191,38 @@ class Classifier(nn.Module):
         
         self.conv5 = nn.Conv2d(16, 1, (1,1), (1,1), padding=(0, 0))
         self.conv5_sigmoid = nn.Sigmoid()
+        """
         
         
     def classify(self, x):
         
+        x = x.view(-1, 5 * 1 * 256 // 2)
+        
+        h1_ = self.fc1_bn(self.fc1(x))
+        h1_gated = self.fc1_gated_bn(self.fc1_gated(x))
+        h1 = torch.mul(h1_, self.fc1_sigmoid(h1_gated))
+        
+        h2_ = self.fc2_bn(self.fc2(h1))
+        h2_gated = self.fc2_gated_bn(self.fc2_gated(h1))
+        h2 = torch.mul(h2_, self.fc2_sigmoid(h2_gated))
+        
+        h3_ = self.fc3_bn(self.fc3(h2))
+        h3_gated = self.fc3_gated_bn(self.fc3_gated(h2))
+        h3 = torch.mul(h3_, self.fc3_sigmoid(h3_gated))
+        
+        h4_ = self.fc4_bn(self.fc4(h3))
+        h4_gated = self.fc4_gated_bn(self.fc4_gated(h3))
+        h4 = torch.mul(h4_, self.fc4_sigmoid(h4_gated))
+        
+        h5_ = self.fc5_bn(self.fc5(h4))
+        h5_gated = self.fc5_gated_bn(self.fc5_gated(h4))
+        h5 = torch.mul(h5_, self.fc5_sigmoid(h5_gated))
+        
+        h6 = self.fc6_sigmoid(self.fc6(h5))
+        
+        return h6
+        
+        """
         h1_ = self.conv1_bn(self.conv1(x))
         h1_gated = self.conv1_gated_bn(self.conv1_gated(x))
         h1 = torch.mul(h1_, self.conv1_sigmoid(h1_gated))
@@ -182,6 +244,7 @@ class Classifier(nn.Module):
         h5 = self.conv5_sigmoid(h5)
         
         return h5.view(-1, 1)
+        """
     
     def calc_loss(self, x, self_label, label_):
         
@@ -200,9 +263,6 @@ class Classifier(nn.Module):
         return loss
         
     def predict(self, x):
-        shape = x.shape
-        if  (len(shape) == 3):
-            x = x.view(-1, shape[0], shape[1], shape[2])
         x.to(self.device)
         y = self.classify(x)
         return y
